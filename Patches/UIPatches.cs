@@ -1,6 +1,8 @@
 ﻿using HarmonyLib;
 using LCVR.Assets;
+using LCVR.Player;
 using LCVR.UI;
+using Microsoft.MixedReality.Toolkit.Experimental.UI;
 using MoreCompany.Behaviors;
 using MoreCompany.Cosmetics;
 using System.Reflection;
@@ -8,12 +10,63 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.Rendering.HighDefinition;
 using UnityEngine.UI;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace LCVR.Patches
 {
+    [LCVRPatch]
+    [HarmonyPatch]
+    internal static class ServerInputFieldPatches
+    {
+        static NonNativeKeyboard Keyboard = null;
+
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(MenuManager), "Start")]
+        private static void OnMainMenuShown(MenuManager __instance)
+        {
+            var canvas = GameObject.Find("Canvas");
+            var keyboardObject = Object.Instantiate(AssetManager.keyboard);
+            keyboardObject.transform.SetParent(canvas.transform, false);
+            keyboardObject.transform.localPosition = new Vector3(0,  -80, -400);
+            keyboardObject.transform.localEulerAngles = new Vector3(45, 0, 0);
+            keyboardObject.transform.localScale = new Vector3(0.15f, 0.15f, 0.15f);
+            var uiCamera = GameObject.Find("UICamera")?.GetComponent<Camera>();
+            keyboardObject.GetComponent<Canvas>().worldCamera = uiCamera;
+            var keyboard = keyboardObject.GetComponent<NonNativeKeyboard>();
+            keyboard.InputField = __instance.lobbyNameInputField;
+            Keyboard = keyboard;
+            keyboard.OnTextSubmitted += (_, _) =>
+            {
+                if (Keyboard != null && Keyboard.isActiveAndEnabled)
+                    Keyboard.Close();
+            };
+        }
+
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(TMP_InputField), nameof(TMP_InputField.OnPointerDown))]
+        private static void OnTMPSelect(TMP_InputField __instance)
+        {
+            Logger.Log("TMP_InputField::OnPointerDown");
+
+            Keyboard.PresentKeyboard(__instance.text);
+        }
+        /*
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(TMP_InputField), nameof(TMP_InputField.OnDeselect))]
+        private static void OnDeselect()
+        {
+            Logger.Log("TMP_InputField::OnDeselect");
+
+            if (Keyboard != null && Keyboard.isActiveAndEnabled)
+                Keyboard.Close();
+        }*/
+    }
+
     [LCVRPatch]
     [HarmonyPatch]
     internal static class UIPatches
